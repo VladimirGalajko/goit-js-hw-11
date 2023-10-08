@@ -3,23 +3,16 @@ import 'notiflix/dist/notiflix-3.2.6.min.css';
 import axios from 'axios';
 import SimpleLightbox from 'simplelightbox';
 import 'simplelightbox/dist/simple-lightbox.min.css';
+import { createMarkup } from './markup.js';
 
-// const { height: cardHeight } = document
-//   .querySelector(".gallery")
-//   .firstElementChild.getBoundingClientRect();
-
-// window.scrollBy({
-//   top: cardHeight * 2,
-//   behavior: "smooth",
-// });
 
 let search = '';
 let page = 1;
-let totalHits = 500;
-let maxTotal = 40 * page;
+let totalHits = '';
+let hits = '';
 const refs = {
   form: document.querySelector('.search-form'),
-  searchBtn: document.querySelector('.js-btn-load'),
+  searchBtn: document.querySelector('.js-btn-search'),
   laodBtn: document.querySelector('.loader'),
   loadMore: document.querySelector('.js-btn-load'),
   gallery: document.querySelector('.gallery'),
@@ -32,9 +25,8 @@ let lightbox = new SimpleLightbox('.gallery__link', {
 });
 
 refs.form.addEventListener('submit', handleSearch);
-refs.loadMore.addEventListener('click', getloadMore);
-
 async function handleSearch(e) {
+  refs.loadMore.setAttribute('hidden', true);
   e.preventDefault();
   search = e.currentTarget.searchQuery.value.trim();
   if (!search) {
@@ -43,23 +35,67 @@ async function handleSearch(e) {
   }
   try {
     const result = await searchData(search);
+    totalHits = result.totalHits;
+    hits = result.hits.length;
+    totalHits -= hits;
+
     const optionsHTML = createMarkup(result.hits);
-    refs.gallery.insertAdjacentHTML('beforeend', optionsHTML);
-    if (result.hits.length == 0) {
-      Notify.failure(`Картинок не знайдено, спробуйте ще раз`);
+    refs.gallery.innerHTML = optionsHTML;
+
+    if (result.total > 0) {
+      Notify.success(`Horray! We found ${result.totalHits} images`);
+    } else {
+      Notify.failure(
+        `Sorry, there are no images matching your search query. Please try again.`
+      );
     }
-    console.log(result.hits); 
+    if (hits >= 40) {
+      refs.loadMore.removeAttribute('hidden');
+    }
     lightbox.refresh();
-    console.log(refs.loadMore)
-    refs.loadMore.removeAttribute('hidden')
-  } catch {
-    console.log('err');
+  } catch (err) {
+    Notify.failure(err.message);
   } finally {
     refs.form.reset();
   }
 }
 
-async function searchData(search,page) {
+refs.loadMore.addEventListener('click', getloadMore);
+async function getloadMore() {
+  if (totalHits <= 0) {
+    page = 1;
+    refs.loadMore.setAttribute('hidden', true);
+    Notify.info(`We're sorry, but you've reached the end of search results.`, {
+      className: 'notify-warning',
+      width: '300px',
+      position: 'center-bottom',
+      warning: { background: '#ff827e' },
+    });
+    return;
+  }
+
+  try {
+    page += 1;
+    totalHits -= hits;
+    const response = await searchData(search, page);
+    const optionsHTML = createMarkup(response.hits);
+    refs.gallery.insertAdjacentHTML('beforeend', optionsHTML);
+    lightbox.refresh();
+
+    const { height: cardHeight } = document
+      .querySelector('.gallery')
+      .firstElementChild.getBoundingClientRect();   
+    window.scrollBy({
+      top: cardHeight * 2.6,
+      behavior: 'smooth',
+    });
+  } catch (err) {
+    Notify.failure(err.message);
+    refs.loadMore.setAttribute('hidden', true);
+  }
+}
+
+async function searchData(search, page) {
   const BASE_URL = 'https://pixabay.com/api/';
   const API_KEY = '39891458-4c88624de20012882beea7343';
   const params = new URLSearchParams({
@@ -74,50 +110,3 @@ async function searchData(search,page) {
   const response = await axios.get(`${BASE_URL}?${params}`);
   return response.data;
 }
-
-function createMarkup(arr) {
-  return arr
-    .map(
-      ({
-        largeImageURL,
-        webformatURL,
-        tags,
-        likes,
-        views,
-        comments,
-        downloads,
-      }) =>
-        `<div class="photo-card">
-             <a  class="gallery__link" href="${largeImageURL}">
-                 <img src= "${webformatURL}" alt="${tags}" loading="lazy" />
-             </a>
-             <div class="info-item">
-                <p><b>Likes</b>  ${likes}</b>
-                </p><p><b>Views</b>  ${views}</b>
-               </p><p><b>Comments</b>  ${comments}</b>
-               </p><p><b>Downloads</b> ${downloads}</b>
-               </p>
-            </div>
-        </div>
-    `
-    )
-    .join('');
-}
-
-
-async function getloadMore(){
-    page += 5   
-    const response = await searchData(search,page) 
-    const optionsHTML = createMarkup(response.hits);
-    refs.gallery.insertAdjacentHTML('beforeend', optionsHTML);
-    lightbox.refresh();
-    console.log(response)
-}
-
-
-
-    // new SimpleLightbox('.gallery__link', {
-    //   captions: 'true',
-    //   captionsData: 'alt',
-    //   captionDelay: 300,
-    // });
