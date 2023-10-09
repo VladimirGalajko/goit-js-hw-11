@@ -27,6 +27,7 @@ let lightbox = new SimpleLightbox('.gallery__link', {
 refs.form.addEventListener('submit', handleSearch);
 async function handleSearch(e) {
   refs.loadMore.setAttribute('hidden', true);
+  page = 1;
   e.preventDefault();
   search = e.currentTarget.searchQuery.value.trim();
   if (!search) {
@@ -34,7 +35,7 @@ async function handleSearch(e) {
     return;
   }
   try {
-    const result = await searchData(search);
+    const result = await searchData(search,page);
     totalHits = result.totalHits;
     hits = result.hits.length;
     totalHits -= hits;
@@ -95,7 +96,7 @@ async function getloadMore() {
   }
 }
 
-async function searchData(search, page) {
+async function searchData(search, page) {  
   const BASE_URL = 'https://pixabay.com/api/';
   const API_KEY = '39891458-4c88624de20012882beea7343';
   const params = new URLSearchParams({
@@ -107,6 +108,8 @@ async function searchData(search, page) {
     page,
     per_page: 40,
   });
+ 
   const response = await axios.get(`${BASE_URL}?${params}`);
+  
   return response.data;
 }
